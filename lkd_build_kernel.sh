@@ -14,5 +14,5 @@ make kvm_guest.config && \
     -d DEBUG_INFO_COMPRESSED \
     -d DEBUG_INFO_SPLIT \
     -d RANDOMIZE_BASE && \
-make -j8 all && \
-make -j8 modules 
+make -j$(nproc) all && \
+make -j$(nproc) modules 

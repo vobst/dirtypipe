@@ -11,3 +11,10 @@ source /usr/share/pwndbg/gdbinit.py
 
 # use if you have light terminal colors (e.g. solarized light) 
 set syntax-highlight-style friendly
+
+# specific to kernel debugging setup
+add-auto-load-safe-path /project
+file /project/vmlinux
+set architecture i386:x86-64:intel
+target remote 127.0.0.1:1234
+lx-symbols
