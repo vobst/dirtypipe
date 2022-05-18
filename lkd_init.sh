@@ -10,8 +10,11 @@ tar xf linux-e783362eb54cd99b2cac8b3a9aeac942e6f6ac07.tar.gz && \
 rsync -a linux-e783362eb54cd99b2cac8b3a9aeac942e6f6ac07/ $(pwd)/  && \
 rm -rf linux-e783362eb54cd99b2cac8b3a9aeac942e6f6ac07* || exit 1
 
+# apply patches
+cp lkd_dirtypipe_files.dir/iov_iter.c lib/iov_iter.c
+
 ./lkd_build_kernel.sh && \
-./lkd_create_root_fs.sh || exit 1
+sudo ./lkd_create_root_fs.sh || exit 1
 
 # fix broken (for docker) symlink
 ln -sf /project/scripts/gdb/vmlinux-gdb.py vmlinux-gdb.py
