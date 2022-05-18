@@ -424,6 +424,8 @@ static size_t copy_page_to_iter_pipe(struct page *page, size_t offset, size_t by
 	if( !strncmp(get_task_comm(buff, current), "poc", 3) )
 	{
 	  va_page = kmap(page); // map page so we can read it
+	  printk(KERN_INFO "[lkd] Data of struct page at %p is at %p",
+	      page, va_page);
 	  if( !va_page ) // avoid optimization
 	    return 1337;
 	}
