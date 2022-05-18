@@ -108,7 +108,7 @@ class CopyPageBP(g.Breakpoint):
         pipe.print_info()
         buf.print_info()
         fmap.print_info()
-        return False
+        return True
 
 class WriteBP(g.Breakpoint):
     def stop(self):
