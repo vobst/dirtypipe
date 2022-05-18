@@ -23,8 +23,9 @@ echo -e "auto enp0s3\niface enp0s3 inet dhcp" >> $DIR/etc/network/interfaces && 
 mkdir $DIR/root/.ssh && \
 cat /home/kali/.ssh/id_rsa.pub > $DIR/root/.ssh/authorized_keys && \
 cp /home/kali/dotfiles/config/ssh/sshd_config $DIR/etc/ssh/ && \
-cp lkd_dirtypipe_files.dir/poc.c $DIR/root
-cp lkd_dirtypipe_files.dir/prepare.sh $DIR/root
+cp lkd_dirtypipe_files.dir/poc.c $DIR/root && \
+cp lkd_dirtypipe_files.dir/prepare.sh $DIR/root && \
+chmod 777 $DIR/root/prepare.sh && \
 umount $DIR && \
 rmdir $DIR && chmod 777 $IMG && exit 0 || \
 umount $DIR && rmdir $DIR && exit 1

@@ -42,37 +42,38 @@ class GenericStruct():
     def print_info(self):
         '''
         Info: Prints summary including 'interesting' members of the 
-          struct. Implement yourself when subclassing.
+          struct. 
+        '''
+        self.print_header()
+        self._print_info()
+        print('')
+
+    def _print_info(self):
+        '''
+        Implement yourself when subclassing.
         '''
         pass
 
 class Task(GenericStruct):
-    def print_info(self):
-        self.print_header()
+    def _print_info(self):
         self.print_member('pid')
         self.print_member('comm')
-        print('')
 
 class Pipe(GenericStruct):
-    def print_info(self):
-        self.print_header()
+    def _print_info(self):
         self.print_member('head')
         self.print_member('tail')
         self.print_member('ring_size')
         self.print_member('bufs')
-        print('')
 
 class PipeBuffer(GenericStruct):
-    def print_info(self):
-        self.print_header()
+    def _print_info(self):
         print(self.address.dereference())
-        print('')
 
 class AddrSpace(GenericStruct):
-    def print_info(self):
-        self.print_header()
-        print("> 'i_pages.xa_head' : {0}".format(self.get_member('i_pages'              )['xa_head']))
-        print('')
+    def _print_info(self):
+        print("> 'i_pages.xa_head' : {0}".format(
+            self.get_member('i_pages')['xa_head']))
 
 class PipeBP(g.Breakpoint):
     def stop(self):

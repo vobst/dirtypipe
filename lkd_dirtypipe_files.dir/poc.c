@@ -90,7 +90,6 @@ void main()
    * ... and after writing.
    */
   printf("Page cache after writing: %s", file_mapping);
-  puts(file_mapping);
   // TOOD: Maybe flush page chache and do it again?
   exit(0);
 }	  
