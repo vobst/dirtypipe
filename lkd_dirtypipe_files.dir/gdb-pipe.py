@@ -1,72 +1,122 @@
 import gdb as g
 import re
+
+'''
+@global Task        task    'struct task_struct' of poc process
+@global Pipe        pipe    'struct pipe_inode_info' of our pipe
+@global PipeBuffer  buf     'struct pipe_buffer' of our pipe
+@global AddrSpace   fmap    'struct address_space' representing the
+                            target target file in the page cache
+'''
+task = None
+pipe = None
+buf = None
+fmap = None
+
+class GenericStruct():
+    def __init__(self, address):
+        '''
+        @param gdb.Value address: pointer to struct
+        '''
+        self.address = address
+
+    def get_member(self, member):
+        '''
+        @param String member: struct member to get
+        '''
+        return self.address.dereference()[member]
+
+    def print_member(self, member):
+        '''
+        @param String member: struct member to print
+        '''
+        print("> '{0}': {1}".format(member, self.get_member(member)))
+
+    def print_header(self):
+        '''
+        Info: prints type and address of the struct.
+        '''
+        print("{0} at {1}".format(self.address.type,
+                                    self.address))
+
+    def print_info(self):
+        '''
+        Info: Prints summary including 'interesting' members of the 
+          struct. Implement yourself when subclassing.
+        '''
+        pass
+
+class Task(GenericStruct):
+    def print_info(self):
+        self.print_header()
+        self.print_member('pid')
+        self.print_member('comm')
+        print('')
+
+class Pipe(GenericStruct):
+    def print_info(self):
+        self.print_header()
+        self.print_member('head')
+        self.print_member('tail')
+        self.print_member('ring_size')
+        self.print_member('bufs')
+        print('')
+
+class PipeBuffer(GenericStruct):
+    def print_info(self):
+        self.print_header()
+        print(self.address.dereference())
+        print('')
+
+class AddrSpace(GenericStruct):
+    def print_info(self):
+        self.print_header()
+        print("> 'i_pages.xa_head' : {0}".format(self.get_member('i_pages'              )['xa_head']))
+        print('')
+
 class PipeBP(g.Breakpoint):
     def stop(self):
-        pipe = g.parse_and_eval('pipe')
-        bufs = pipe.dereference()['bufs']
-        print(79*"-"+"\nStage: create pipe\n"
-                "Address of 'struct pipe_inode_info': {0}\n"
-                "> 'ring_size': {3}\n"
-                "> 'bufs': {1}\n"
-                "Contents of first 'struct pipe_buffer':\n{2}\n"
-                .format(pipe, bufs, bufs.dereference(), 
-                  pipe.dereference()['ring_size']))
+        global pipe, task
+        task = Task(g.parse_and_eval('$lx_current()').address)
+        pipe = Pipe(g.parse_and_eval('pipe'))
+        buf = PipeBuffer(pipe.get_member('bufs'))
+        print(75*"-"+"\nStage 1: create fresh pipe\n")
+        task.print_info()
+        pipe.print_info()
+        buf.print_info()
         return False
 
 class BufReleaseBP(g.Breakpoint):
     def stop(self):
-        pipe = g.parse_and_eval('pipe')
-        buf = g.parse_and_eval('buf')
-        print(79*"-"+"\nStage: releasing drained 'struct pipe_buffer'\n"
-                "Address of 'struct pipe_inode_info': {0}\n"
-                "> 'ring_size': {3}\n"
-                "> 'bufs': {4}\n"
-                "Address of drained 'struct pipe_buffer': {1}\n"
-                "> contents (after releasing):\n{2}\n"
-                .format(pipe, buf, buf.dereference(),
-                  pipe.dereference()['ring_size'],
-                  pipe.dereference()['bufs']))
+        global pipe, buf, task
+        buf = PipeBuffer(pipe.get_member('bufs'))
+        print(75*"-"+"\nStage 4: release drained pipe buffer\n")
+        task.print_info()
+        pipe.print_info()
+        buf.print_info()
         return False
 
 class CopyPageBP(g.Breakpoint):
     def stop(self):
-        global writebp
-        writebp.enabled = True
-        pipe = g.parse_and_eval('i').dereference()['pipe']
-        buf = pipe.dereference()['bufs']
-        print(79*"-"+"\nStage: splicing file to pipe\n"
-                "Address of 'struct pipe_inode_info': {0}\n"
-                "> 'ring_size': {3}\n"
-                "> 'bufs': {4}\n"
-                "Address of target 'struct pipe_buffer': {1}\n"
-                "> contents (after splicing):\n{2}\n"
-                "Address of source 'struct address_space': {5}\n"
-                "> Info: descibes an object in page cache\n"
-                "> data page: {6}"
-                .format(pipe, buf, buf.dereference(),
-                  pipe.dereference()['ring_size'],
-                  pipe.dereference()['bufs'],
-                  re.findall(r'0x[0-9a-fA-F]+', g.execute(
-                    'p $lx_current().files.fdt.fd[3].f_inode.i_mapping',
-                    to_string=True))[0],
-                  re.findall(r'0x[0-9a-fA-F]+', g.execute(
-                    'p $lx_current().files.fdt.fd[3].f_inode.i_mapping'
-                    '.i_pages.xa_head', to_string=True))[0]))
+        global writebp, fmap, pipe, buf, task
+        writebp.enabled = True # TOOD implement proper
+        fmap = AddrSpace(g.parse_and_eval(
+            '$lx_current().files.fdt.fd[3].f_inode.i_mapping'))
+        print(75*"-"+"\nStage 5: splicing file to pipe\n")
+        task.print_info()
+        pipe.print_info()
+        buf.print_info()
+        fmap.print_info()
         return False
 
 class WriteBP(g.Breakpoint):
     def stop(self):
-        pipe = g.parse_and_eval('pipe')
-        buf = pipe.dereference()['bufs']
-        print(79*"-"+"\nStage: writing into page cache\n"
-                "Address of 'struct pipe_inode_info': {0}\n"
-                "> 'ring_size': {3}\n"
-                "> 'bufs': {4}\n"
-                "Address of 'struct pipe_buffer': {1}\n"
-                "> contents (after appending):\n{2}\n"
-                .format(pipe, buf, buf.dereference(),
-                  pipe.dereference()['ring_size'],
-                  pipe.dereference()['bufs']))
+        global task, pipe, buf, fmap
+        print(75*"-"+"\nStage 6: writing to page cache\n")
+        task.print_info()
+        pipe.print_info()
+        buf.print_info()
+        fmap.print_info()
         g.execute('q')
         return False
 
