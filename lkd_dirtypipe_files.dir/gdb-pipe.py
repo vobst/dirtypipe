@@ -71,9 +71,18 @@ class PipeBuffer(GenericStruct):
         print(self.address.dereference())
 
 class AddrSpace(GenericStruct):
+    def __init__(self, address):
+        '''
+        @attr   gdb.Value   data    virtual address of cached data
+        '''
+        super().__init__(address)
+        self.data = None
+
     def _print_info(self):
         print("> 'i_pages.xa_head' : {0}".format(
             self.get_member('i_pages')['xa_head']))
+        print("> data: "+g.selected_inferior().read_memory(self.data, 19)
+                .tobytes().decode('ASCII'))
 
 class PipeBP(g.Breakpoint):
     def stop(self):
@@ -103,12 +112,14 @@ class CopyPageBP(g.Breakpoint):
         writebp.enabled = True # TOOD implement proper
         fmap = AddrSpace(g.parse_and_eval(
             '$lx_current().files.fdt.fd[3].f_inode.i_mapping'))
+        fmap.data = g.parse_and_eval('va_page')
+        print(fmap.data)
         print(75*"-"+"\nStage 5: splicing file to pipe\n")
         task.print_info()
         pipe.print_info()
         buf.print_info()
         fmap.print_info()
-        return True
+        return False
 
 class WriteBP(g.Breakpoint):
     def stop(self):
@@ -123,7 +134,7 @@ class WriteBP(g.Breakpoint):
 
 PipeBP('fs/pipe.c:885')
 BufReleaseBP('anon_pipe_buf_release')
-CopyPageBP('lib/iov_iter.c:420')
+CopyPageBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT)
 writebp = WriteBP('*0xffffffff8120c94e', g.BP_HARDWARE_BREAKPOINT)
 writebp.enabled = False
 g.execute('c')
