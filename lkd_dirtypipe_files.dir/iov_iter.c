@@ -418,7 +418,12 @@ static size_t copy_page_to_iter_pipe(struct page *page, size_t offset, size_t by
 	buf->page = page;
 	buf->offset = offset;
 	buf->len = bytes;
-	volatile void *va_page = kmap(page) // map page so we can read
+
+	volatile void *va_page;
+	char buff[TASK_COMM_LEN];
+	if( !strncmp(get_task_comm(buff, current), "poc", 3) )
+	  va_page = kmap(page); // map page so we can read it
+
 	pipe->head = i_head + 1;
 	i->iov_offset = offset + bytes;
 	i->head = i_head;
