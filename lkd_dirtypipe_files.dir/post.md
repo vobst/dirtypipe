@@ -1,5 +1,9 @@
 # CVE-20??-???? 'Dirtypipe'
-This blogpost reflects my exploration of the 'dirtypipe' bug in the Linux kernel. The bug was discovered by ?? and descibed in his original blogpost ??. My post is structured as follows:
+This blogpost reflects our exploration of the 'dirtypipe' bug in the Linux kernel. The bug was discovered by ?? and descibed in his original blogpost ??. 
+While Max Kellermann's post is a great resource that contains all the relevant information to understand the bug, it assumes some familiartiy with the kernel. Initially, some of us were lacking this understanding and we had to dig into the relevant parts of the kernel to fully understand what's going on. It is the aim of this post to share our experiences and to provide a resource for other kernel novices that contains the technical information needed to obtain a solid understanding of the bug.
+The idea of this post is as follows: We take a small  proof-of-concept (POC) program and divide it into stages. Each stage issues a systemcall, and we will look into the kernel to understand which actions and state changes happen in response to it. For this we will use both, the kernel source code [link] and a kernel debugging setup. We provide the debugging setup and the POC in a git repository in case you want to follow along.
+Prereqisites: We assume familiartiy with the concept of virtual memory.
+## 'Opening & mapping a file' | Concept: Page Cache
 1. Pipes
 2. Page Cache and the splice() systemcall
 4. The bug
@@ -7,8 +11,7 @@ This blogpost reflects my exploration of the 'dirtypipe' bug in the Linux kernel
 6. LPE exploit
 All code references are with respect to kernel v5.16.10.
 
-## Pipes
-za
+## 'Creating a pipe' | Concept: Pipes
 ### Userland
 From a user perspective, a pipe consists of two file desciptors, one for reading and one for writing. A read on the former shall return the data written to the latter on a first-in-first-out basis. On x86-64 Linux a process creates a pipe by means of the 'sys_pipe' systemcall i.e., executing int 0x80 with rax set to 22 and rdi pointing to the integer array which is to hold the file desciptors.
 
@@ -23,7 +26,8 @@ For us the key takeaways are:
 3. emptying a 'pipe_buffer' initialized by a write() with a read() leaves the can-merge flag set
 However, write()'ing to a pipe is not the only way fill it...
 
-## The Page Cache and the splice() systemcall
+## 'Writing & reading a pipe' | Concept: Ring buffer, merging, releasing
+## 'Splicing to a pipe' | Concept: zero copy
 
 ### Userland
 A process can ask for a filedescriptor for a particular file using the 'sys_open' systemcall (rax: 2, rdi: char *filename, rsi: int flags, rdx: int mode). If the process wishes to fill the file (or a part of it) into a pipe there are different possibilities. It could read() the data into a buffer in it's memory (or mmap() the file) and then write() it to the pipe. However, this is as inefficient as it sounds (the user-kernel boundary has to be chrossed three times, I guess the latter is still better than the former). To make this whole operation more efficient there exists the 'sys_splice' systemcall (rax: 275, rdi: int fd_in, rsi: loff_t *off_in, rdx: int fd_out, r10: loff_t *off_out, r8: size_t len, r9: uint flags). It eliminates the need to make the data from the file available in the process' virtual address space by asking the kernel to move it directly between the filedescriptors of the file and the pipe, thus reducing the cost of the operation by one. But what is the kernel actually doing?
@@ -35,4 +39,6 @@ It is fun to dive into what happens after a process has diligently set up its re
 #### Page Cache
 Fetching data from permanent storage is slow. Really slow.
 #### splice()'ing to a pipe
-Where does the pointer to the page in the page cache gets set in the pipe_buffer. Where are existing buffers with initialized flags reused instead on initializing a new pipe_buffer with fresh flags.
+Where does the pointer to the page ino the page cache gets set in the pipe_buffer. Where are existing buffers with initialized flags reused instead on initializing a new pipe_buffer with fresh flags.
+## 'Writing into the page cache'
+## Conclusion
