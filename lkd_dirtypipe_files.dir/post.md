@@ -1,8 +1,7 @@
-# CVE-20??-???? 'Dirtypipe'
-This blogpost reflects our exploration of the 'dirtypipe' bug in the Linux kernel. The bug was discovered by ?? and described in his original blogpost ??. 
-While Max Kellermann's post is a great resource that contains all the relevant information to understand the bug, it assumes some familiartiy with the kernel. Initially, some of us were lacking this understanding and we had to dig into the relevant parts of the kernel to fully understand what's going on. It is the aim of this post to share our experiences and to provide a resource for other kernel novices that contains the technical information needed to obtain a solid understanding of the bug.
-The idea of this post is as follows: We take a small  proof-of-concept (POC) program and divide it into stages. Each stage issues a systemcall, and we will look into the kernel to understand which actions and state changes happen in response to it. For this we will use both, the kernel source code [link] and a kernel debugging setup. We provide the debugging setup and the POC in a git repository in case you want to follow along.
-Prereqisites: We assume familiartiy with operating system (OS) abstactions like virtual memory, files, ...
+# The Dirty Pipe Vulnerability - CVE-2022-0847
+
+This blog post reflects our exploration of the Dirty Pipe Vulnerability in the Linux kernel. The bug was discovered by Max Kellermann and described in his original [blog post](https://dirtypipe.cm4all.com/). While Kellermann's post is a great resource that contains all the relevant information to understand the bug, it assumes some familiarity with the kernel. To fully understand what's going on we shed some more light on some Linux kernel internals. The aim of this post is to share our knowledge and to provide a resource for other interested individuals.
+The idea of this post is as follows: We take a small  proof-of-concept (PoC) program and divide it into several stages. Each stage issues a system call, and we will look into the kernel to understand which actions and state changes happen in response to those calls. For this we use both, the kernel source code (https://elixir.bootlin.com/linux/v5.17.9/source) and a kernel debugging setup (derived from https://github.com/martinclauss/linux-kernel-debugging). We Dirty Pipe-specific debugging setup and the PoC code is provided in a GitHub repository for your convenience at: TODO
 
 ## 'Opening & mapping a file' | Concept: Page Cache
 Text: caching for performance - cache is what matters - file mappings 
