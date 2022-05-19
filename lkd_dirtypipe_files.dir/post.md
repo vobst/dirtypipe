@@ -5,12 +5,16 @@ The idea of this post is as follows: We take a small  proof-of-concept (POC) pro
 Prereqisites: We assume familiartiy with operating system (OS) abstactions like virtual memory, files, ...
 ## 'Opening & mapping a file' | Concept: Page Cache
 Text: caching for performance - cache is what matters - file mappings 
+
 Kernel source: cache hit/miss, caching file, creating fd entry
+
 Debugging: get struct task_struct, struct address_space, struct page & data of page
 
 ## 'Creating a pipe' | Concept: Pipes
 Text: unidirectional IPC mechanism - ring buffer
+
 Kernel source: alloc pipe inode, register fds with proc, file operations
+
 Debugging: get struct pipe_inode_info
 
 ### Userland
@@ -29,12 +33,16 @@ However, write()'ing to a pipe is not the only way fill it...
 
 ## 'Writing & reading a pipe' | Concept: Ring buffer, merging, releasing
 Text: file operations - writes that create new anon page (flag init) - wites that merge - reads that emply a page (no deinit)
+
 Kernel source: pipe inode file operations - pipe_write - pipe_read - anon_buf_release
+
 Debugging: evolution of struct pipe_buffer
 
 ## 'Splicing to a pipe' | Concept: zero copy
 Text: why splice is efficient 
+
 Kernel source: copy_page_to_iter_pipe
+
 Debugging: show that indeed pipe_buffer and address_space refer to the same stuct page, show that flags are still set from earlier (we reuse the buffer)
 
 ### Userland
@@ -50,7 +58,9 @@ Fetching data from permanent storage is slow. Really slow.
 Where does the pointer to the page ino the page cache gets set in the pipe_buffer. Where are existing buffers with initialized flags reused instead on initializing a new pipe_buffer with fresh flags.
 ## 'Writing into the page cache' | Analysis: Two perspectives on one page
 Text: permission checks long gone, two perspecives explain: why can't make file larger, why cant overwrite first byte, why cant write across pages
+
 Kernel source (covered earlier)
+
 Debugging: show that we go down append path on next write, len field of pipe_buffer changes, print data in page cache from reference we saved earlier
 ## Conclusion
 Text: Takeaways for approaches for understanding OS bugs, exploitation ideas, 
