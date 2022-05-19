@@ -40,5 +40,5 @@ It is fun to dive into what happens after a process has diligently set up its re
 Fetching data from permanent storage is slow. Really slow.
 #### splice()'ing to a pipe
 Where does the pointer to the page ino the page cache gets set in the pipe_buffer. Where are existing buffers with initialized flags reused instead on initializing a new pipe_buffer with fresh flags.
-## 'Writing into the page cache'
+## 'Writing into the page cache' | Analysis: Two perspectives on one page
 ## Conclusion
