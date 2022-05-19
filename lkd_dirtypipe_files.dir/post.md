@@ -1,17 +1,18 @@
 # CVE-20??-???? 'Dirtypipe'
-This blogpost reflects our exploration of the 'dirtypipe' bug in the Linux kernel. The bug was discovered by ?? and descibed in his original blogpost ??. 
+This blogpost reflects our exploration of the 'dirtypipe' bug in the Linux kernel. The bug was discovered by ?? and described in his original blogpost ??. 
 While Max Kellermann's post is a great resource that contains all the relevant information to understand the bug, it assumes some familiartiy with the kernel. Initially, some of us were lacking this understanding and we had to dig into the relevant parts of the kernel to fully understand what's going on. It is the aim of this post to share our experiences and to provide a resource for other kernel novices that contains the technical information needed to obtain a solid understanding of the bug.
 The idea of this post is as follows: We take a small  proof-of-concept (POC) program and divide it into stages. Each stage issues a systemcall, and we will look into the kernel to understand which actions and state changes happen in response to it. For this we will use both, the kernel source code [link] and a kernel debugging setup. We provide the debugging setup and the POC in a git repository in case you want to follow along.
-Prereqisites: We assume familiartiy with the concept of virtual memory.
+Prereqisites: We assume familiartiy with operating system (OS) abstactions like virtual memory, files, ...
 ## 'Opening & mapping a file' | Concept: Page Cache
-1. Pipes
-2. Page Cache and the splice() systemcall
-4. The bug
-5. POC
-6. LPE exploit
-All code references are with respect to kernel v5.16.10.
+Text: caching for performance - cache is what matters - file mappings 
+Kernel source: cache hit/miss, caching file, creating fd entry
+Debugging: get struct task_struct, struct address_space, struct page & data of page
 
 ## 'Creating a pipe' | Concept: Pipes
+Text: unidirectional IPC mechanism - ring buffer
+Kernel source: alloc pipe inode, register fds with proc, file operations
+Debugging: get struct pipe_inode_info
+
 ### Userland
 From a user perspective, a pipe consists of two file desciptors, one for reading and one for writing. A read on the former shall return the data written to the latter on a first-in-first-out basis. On x86-64 Linux a process creates a pipe by means of the 'sys_pipe' systemcall i.e., executing int 0x80 with rax set to 22 and rdi pointing to the integer array which is to hold the file desciptors.
 
@@ -27,7 +28,14 @@ For us the key takeaways are:
 However, write()'ing to a pipe is not the only way fill it...
 
 ## 'Writing & reading a pipe' | Concept: Ring buffer, merging, releasing
+Text: file operations - writes that create new anon page (flag init) - wites that merge - reads that emply a page (no deinit)
+Kernel source: pipe inode file operations - pipe_write - pipe_read - anon_buf_release
+Debugging: evolution of struct pipe_buffer
+
 ## 'Splicing to a pipe' | Concept: zero copy
+Text: why splice is efficient 
+Kernel source: copy_page_to_iter_pipe
+Debugging: show that indeed pipe_buffer and address_space refer to the same stuct page, show that flags are still set from earlier (we reuse the buffer)
 
 ### Userland
 A process can ask for a filedescriptor for a particular file using the 'sys_open' systemcall (rax: 2, rdi: char *filename, rsi: int flags, rdx: int mode). If the process wishes to fill the file (or a part of it) into a pipe there are different possibilities. It could read() the data into a buffer in it's memory (or mmap() the file) and then write() it to the pipe. However, this is as inefficient as it sounds (the user-kernel boundary has to be chrossed three times, I guess the latter is still better than the former). To make this whole operation more efficient there exists the 'sys_splice' systemcall (rax: 275, rdi: int fd_in, rsi: loff_t *off_in, rdx: int fd_out, r10: loff_t *off_out, r8: size_t len, r9: uint flags). It eliminates the need to make the data from the file available in the process' virtual address space by asking the kernel to move it directly between the filedescriptors of the file and the pipe, thus reducing the cost of the operation by one. But what is the kernel actually doing?
@@ -41,4 +49,8 @@ Fetching data from permanent storage is slow. Really slow.
 #### splice()'ing to a pipe
 Where does the pointer to the page ino the page cache gets set in the pipe_buffer. Where are existing buffers with initialized flags reused instead on initializing a new pipe_buffer with fresh flags.
 ## 'Writing into the page cache' | Analysis: Two perspectives on one page
+Text: permission checks long gone, two perspecives explain: why can't make file larger, why cant overwrite first byte, why cant write across pages
+Kernel source (covered earlier)
+Debugging: show that we go down append path on next write, len field of pipe_buffer changes, print data in page cache from reference we saved earlier
 ## Conclusion
+Text: Takeaways for approaches for understanding OS bugs, exploitation ideas, 
