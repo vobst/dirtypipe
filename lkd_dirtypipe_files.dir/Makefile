@@ -1,7 +1,13 @@
-all: format poc
+.PHONY: format clean
+
+all: poc
+
+
+poc: poc.c
+	gcc -g -O0 -o poc poc.c
 
 format: poc.c
 	astyle --options="astyle-code-format.cfg" "poc.c*"
 
-poc: poc.c
-	gcc -O0 -o poc poc.c
+clean:
+	rm -f poc
