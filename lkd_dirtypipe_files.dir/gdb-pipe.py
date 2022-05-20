@@ -1,21 +1,34 @@
+# TODO add gdb cli function to convert struct page * to VA
 import gdb as g
 
 '''
 @global Task        task    'struct task_struct' of poc process
 @global Pipe        pipe    'struct pipe_inode_info' of our pipe
 @global PipeBuffer  buf     'struct pipe_buffer' of our pipe
+@global File        file    'struct file' of target file
 @global AddrSpace   fmap    'struct address_space' representing the
                             target target file in the page cache
+@global Page        page    'struct page' holding data in page cache
 '''
 task = None
 pipe = None
 buf = None
+file = None
 fmap = None
+page = None
 
+
+'''
+Struct classes
+'''
 class GenericStruct():
+    '''
+    Info: Container for a struct.
+    @attr   gdb.Value   address     pointer to struct
+    '''
     def __init__(self, address):
         '''
-        @param gdb.Value address: pointer to struct
+        @param  gdb.Value   address     pointer to struct
         '''
         self.address = address
 
@@ -54,10 +67,12 @@ class GenericStruct():
         '''
         pass
 
+
 class Task(GenericStruct):
     def _print_info(self):
         self.print_member('pid')
         self.print_member('comm')
+
 
 class Pipe(GenericStruct):
     def _print_info(self):
@@ -66,19 +81,23 @@ class Pipe(GenericStruct):
         self.print_member('ring_size')
         self.print_member('bufs')
 
+
 class PipeBuffer(GenericStruct):
     def _print_info(self):
         print(self.address.dereference())
+
 
 class AddrSpace(GenericStruct):
     def _print_info(self):
         print("> 'i_pages.xa_head' : {0}".format(
             self.get_member('i_pages')['xa_head']))
 
+
 class XArray(GenericStruct):
     # TODO implement proper xarray functionality
     def _print_info(self):
         pass
+
 
 class Page(GenericStruct):
     # TODO this belongs into parent class
@@ -109,9 +128,13 @@ class Page(GenericStruct):
     def _print_info(self):
         print("> data: "+g.selected_inferior().read_memory(self.virtual, 19).tobytes().decode('ASCII'))
 
+
+'''
+Breakpoint classes
+'''
 class GenericContextBP(g.Breakpoint):
     '''
-    Info: A Breakpoint that is only stopping in a given context.
+    Info: A Breakpoint that is only active in a given context.
     '''
     def __init__(self, *args, **kwargs):
         '''
@@ -126,7 +149,7 @@ class GenericContextBP(g.Breakpoint):
     def stop(self):
         # Problem: It seems like the BP.condition only influences whether 
         #   gdb stops the program i.e. return value of stop(), but not if
-        #   the code in stop() is executed
+        #   the code in stop() is executed.
         if( g.parse_and_eval(self._condition) == 0 ):
             return False
         return self._stop()
@@ -134,10 +157,34 @@ class GenericContextBP(g.Breakpoint):
     def _stop(self):
         pass
 
+class File(GenericStruct):
+    def get_filename(self):
+        return self.get_member('f_path')['dentry']['d_name']['name'].string()
+
+    def _print_info(self):
+        print('> filename: '+self.get_filename())
+
+
+class OpenBP(GenericContextBP):
+    def _stop(self):
+        global task, file, fmap, page
+        file = File(g.parse_and_eval('f'))
+        if file.get_filename() != "target_file":
+            return False
+        task = Task(g.parse_and_eval('$lx_current()').address)
+        fmap = AddrSpace(file.get_member('f_mapping'))
+        page = Page(fmap.get_member('i_pages')['xa_head'])
+        print(75*"-"+"\nStage 1: open the target file\n")
+        task.print_info()
+        file.print_info()
+        fmap.print_info()
+        page.print_info()
+        return True
+
+
 class PipeBP(GenericContextBP):
     def _stop(self):
-        global pipe, task
-        task = Task(g.parse_and_eval('$lx_current()').address)
+        global pipe, task, fmap, page
         pipe = Pipe(g.parse_and_eval('pipe'))
         buf = PipeBuffer(pipe.get_member('bufs'))
         print(75*"-"+"\nStage 1: create fresh pipe\n")
@@ -160,8 +207,6 @@ class CopyPageBP(GenericContextBP):
     def _stop(self):
         global writebp, fmap, pipe, buf, task
         writebp.enabled = True # TOOD implement proper
-        fmap = AddrSpace(g.parse_and_eval(
-            '$lx_current().files.fdt.fd[3].f_inode.i_mapping'))
         xarray = XArray(fmap.get_member('i_pages').address)
         page = Page(xarray.get_member('xa_head'))
         print(75*"-"+"\nStage 5: splicing file to pipe\n")
@@ -170,7 +215,7 @@ class CopyPageBP(GenericContextBP):
         buf.print_info()
         fmap.print_info()
         page.print_info()
-        return True
+        return False
 
 class WriteBP(GenericContextBP):
     def _stop(self):
@@ -183,6 +228,10 @@ class WriteBP(GenericContextBP):
         g.execute('q')
         return False
 
+'''
+gdb commands
+'''
+OpenBP('fs/open.c:1220', comm = 'poc')
 PipeBP('fs/pipe.c:885', comm = 'poc')
 BufReleaseBP('anon_pipe_buf_release', comm = 'poc')
 CopyPageBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
