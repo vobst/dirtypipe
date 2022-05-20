@@ -76,6 +76,7 @@ class AddrSpace(GenericStruct):
             self.get_member('i_pages')['xa_head']))
 
 class XArray(GenericStruct):
+    # TODO implement proper xarray functionality
     def _print_info(self):
         pass
 
@@ -108,10 +109,33 @@ class Page(GenericStruct):
     def _print_info(self):
         print("> data: "+g.selected_inferior().read_memory(self.virtual, 19).tobytes().decode('ASCII'))
 
+class GenericContextBP(g.Breakpoint):
+    '''
+    Info: A Breakpoint that is only stopping in a given context.
+    '''
+    def __init__(self, *args, **kwargs):
+        '''
+        @attr   String      comm        'comm' member of 'struct 
+                                        task_struct' of process in whose 
+                                        context we want to stop
+        '''
+        super().__init__(*args)
+        self.comm = kwargs['comm']
+        self._condition = f"""$_streq($lx_current().comm, "{self.comm}")"""
 
-
-class PipeBP(g.Breakpoint):
     def stop(self):
+        # Problem: It seems like the BP.condition only influences whether 
+        #   gdb stops the program i.e. return value of stop(), but not if
+        #   the code in stop() is executed
+        if( g.parse_and_eval(self._condition) == 0 ):
+            return False
+        return self._stop()
+
+    def _stop(self):
+        pass
+
+class PipeBP(GenericContextBP):
+    def _stop(self):
         global pipe, task
         task = Task(g.parse_and_eval('$lx_current()').address)
         pipe = Pipe(g.parse_and_eval('pipe'))
@@ -120,10 +144,10 @@ class PipeBP(g.Breakpoint):
         task.print_info()
         pipe.print_info()
         buf.print_info()
-        return False
+        return True
 
-class BufReleaseBP(g.Breakpoint):
-    def stop(self):
+class BufReleaseBP(GenericContextBP):
+    def _stop(self):
         global pipe, buf, task
         buf = PipeBuffer(pipe.get_member('bufs'))
         print(75*"-"+"\nStage 4: release drained pipe buffer\n")
@@ -132,8 +156,8 @@ class BufReleaseBP(g.Breakpoint):
         buf.print_info()
         return False
 
-class CopyPageBP(g.Breakpoint):
-    def stop(self):
+class CopyPageBP(GenericContextBP):
+    def _stop(self):
         global writebp, fmap, pipe, buf, task
         writebp.enabled = True # TOOD implement proper
         fmap = AddrSpace(g.parse_and_eval(
@@ -148,8 +172,8 @@ class CopyPageBP(g.Breakpoint):
         page.print_info()
         return True
 
-class WriteBP(g.Breakpoint):
-    def stop(self):
+class WriteBP(GenericContextBP):
+    def _stop(self):
         global task, pipe, buf, fmap
         print(75*"-"+"\nStage 6: writing to page cache\n")
         task.print_info()
@@ -159,9 +183,9 @@ class WriteBP(g.Breakpoint):
         g.execute('q')
         return False
 
-PipeBP('fs/pipe.c:885')
-BufReleaseBP('anon_pipe_buf_release')
-CopyPageBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT)
-writebp = WriteBP('*0xffffffff8120c94e', g.BP_HARDWARE_BREAKPOINT)
+PipeBP('fs/pipe.c:885', comm = 'poc')
+BufReleaseBP('anon_pipe_buf_release', comm = 'poc')
+CopyPageBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
+writebp = WriteBP('*0xffffffff8120c94e', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
 writebp.enabled = False
 g.execute('c')
