@@ -87,6 +87,16 @@ class PipeBuffer(GenericStruct):
         print(self.address.dereference())
 
 
+class File(GenericStruct):
+    def get_filename(self):
+        # TODO Maybe make it like page_address so it can be used as
+        #   a convenience function without creating class instance
+        return self.get_member('f_path')['dentry']['d_name']['name'].string()
+
+    def _print_info(self):
+        print('> filename: '+self.get_filename())
+
+
 class AddrSpace(GenericStruct):
     def _print_info(self):
         print("> 'i_pages.xa_head' : {0}".format(
@@ -100,7 +110,7 @@ class XArray(GenericStruct):
 
 
 class Page(GenericStruct):
-    # TODO this belongs into parent class
+    # TODO this functionality belongs into parent class
     stype = g.lookup_type('struct page')
     ptype = stype.pointer()
 
@@ -108,7 +118,7 @@ class Page(GenericStruct):
         '''
         @attr   gdb.Value   virtual     virtual address of cached data
         '''
-        # TODO this belongs into parent class
+        # TODO this functionality belongs into parent class
         if address.type != Page.ptype:
             address = address.cast(Page.ptype)
         super().__init__(address)
@@ -156,13 +166,6 @@ class GenericContextBP(g.Breakpoint):
 
     def _stop(self):
         pass
-
-class File(GenericStruct):
-    def get_filename(self):
-        return self.get_member('f_path')['dentry']['d_name']['name'].string()
-
-    def _print_info(self):
-        print('> filename: '+self.get_filename())
 
 
 class OpenBP(GenericContextBP):
