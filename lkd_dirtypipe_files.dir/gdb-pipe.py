@@ -1,5 +1,4 @@
 import gdb as g
-import re
 
 '''
 @global Task        task    'struct task_struct' of poc process
@@ -36,7 +35,8 @@ class GenericStruct():
         '''
         Info: prints type and address of the struct.
         '''
-        print("{0} at {1}".format(self.address.type,
+        # TODO use classvarible type
+        print("{0} at {1}".format(self.address.dereference().type,
                                     self.address))
 
     def print_info(self):
@@ -71,18 +71,44 @@ class PipeBuffer(GenericStruct):
         print(self.address.dereference())
 
 class AddrSpace(GenericStruct):
-    def __init__(self, address):
-        '''
-        @attr   gdb.Value   data    virtual address of cached data
-        '''
-        super().__init__(address)
-        self.data = None
-
     def _print_info(self):
         print("> 'i_pages.xa_head' : {0}".format(
             self.get_member('i_pages')['xa_head']))
-        print("> data: "+g.selected_inferior().read_memory(self.data, 19)
-                .tobytes().decode('ASCII'))
+
+class XArray(GenericStruct):
+    def _print_info(self):
+        pass
+
+class Page(GenericStruct):
+    # TODO this belongs into parent class
+    stype = g.lookup_type('struct page')
+    ptype = stype.pointer()
+
+    def __init__(self, address):
+        '''
+        @attr   gdb.Value   virtual     virtual address of cached data
+        '''
+        # TODO this belongs into parent class
+        if address.type != Page.ptype:
+            address = address.cast(Page.ptype)
+        super().__init__(address)
+        self.virtual = self.page_address(self.address)
+
+    @staticmethod
+    def page_address(page):
+        '''
+        Info: Calculates the virtual address of a page
+        @param  gdb.Value   page        'struct page *'
+        '''
+        vmemmap_base = int(g.parse_and_eval('vmemmap_base'))
+        page_offset_base = int(g.parse_and_eval('page_offset_base'))
+        page = int(page)
+        return (int((page - vmemmap_base)/64) << 12) + page_offset_base
+
+    def _print_info(self):
+        print("> data: "+g.selected_inferior().read_memory(self.virtual, 19).tobytes().decode('ASCII'))
+
+
 
 class PipeBP(g.Breakpoint):
     def stop(self):
@@ -112,14 +138,15 @@ class CopyPageBP(g.Breakpoint):
         writebp.enabled = True # TOOD implement proper
         fmap = AddrSpace(g.parse_and_eval(
             '$lx_current().files.fdt.fd[3].f_inode.i_mapping'))
-        fmap.data = g.parse_and_eval('va_page')
-        print(fmap.data)
+        xarray = XArray(fmap.get_member('i_pages').address)
+        page = Page(xarray.get_member('xa_head'))
         print(75*"-"+"\nStage 5: splicing file to pipe\n")
         task.print_info()
         pipe.print_info()
         buf.print_info()
         fmap.print_info()
-        return False
+        page.print_info()
+        return True
 
 class WriteBP(g.Breakpoint):
     def stop(self):
