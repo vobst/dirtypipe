@@ -128,14 +128,13 @@ class XArray(GenericStruct):
 class Page(GenericStruct):
     stype = g.lookup_type('struct page')
     ptype = stype.pointer()
+    pagesize = 4096
 
     def __init__(self, address):
         '''
         @attr   gdb.Value   virtual     virtual address of cached data
         '''
-        print(address.type)
         super().__init__(address)
-        print(self.address.type)
         self.virtual = self.page_address(self.address)
 
     @staticmethod
@@ -150,7 +149,7 @@ class Page(GenericStruct):
         return (int((page - vmemmap_base)/64) << 12) + page_offset_base
 
     def _print_info(self):
-        print("> data: "+g.selected_inferior().read_memory(self.virtual, 19).tobytes().decode('ASCII'))
+        print("> data: "+str(g.selected_inferior().read_memory(self.virtual, 20).tobytes())+"[...]"+str(g.selected_inferior().read_memory(self.virtual+self.pagesize-20, 20).tobytes()))
 
 
 '''
@@ -168,6 +167,7 @@ class GenericContextBP(g.Breakpoint):
         '''
         super().__init__(*args)
         self.comm = kwargs['comm']
+        self._hit_count = 0
         self._condition = f"""$_streq($lx_current().comm, "{self.comm}")"""
 
     def stop(self):
@@ -176,6 +176,7 @@ class GenericContextBP(g.Breakpoint):
         #   the code in stop() is executed.
         if( g.parse_and_eval(self._condition) == 0 ):
             return False
+        self._hit_count += 1
         return self._stop()
 
     def _stop(self):
@@ -207,7 +208,29 @@ class PipeFcntlBP(GenericContextBP):
         print(75*"-"+"\nStage 2: create pipe\n")
         pipe.print_info()
         buf.print_info()
-        return True
+        return False
+
+
+class PipeWriteBP(GenericContextBP):
+    def _stop(self):
+        global pipe, buf
+        if int(buf.get_member('len')) not in {8, 4096}:
+            return False
+        else:
+            buf_page = Page(buf.get_member('page'))
+            if int(buf.get_member('len')) == 8:
+                print(75*"-"+"\nStage 3.1: init pipe buffer with write\n")
+            elif int(buf.get_member('len')) == 4096:
+                print(75*"-"+"\nStage 3.2: filled pipe buffer\n")
+            else:
+                global fmap
+                print(75*"-"+"\nStage 7:\n")
+                fmap.print_info()
+        pipe.print_info()
+        buf.print_info()
+        buf_page.print_info()
+        return False
+
 
 class BufReleaseBP(GenericContextBP):
     def _stop(self):
@@ -218,6 +241,7 @@ class BufReleaseBP(GenericContextBP):
         pipe.print_info()
         buf.print_info()
         return False
+
 
 class CopyPageBP(GenericContextBP):
     def _stop(self):
@@ -233,24 +257,13 @@ class CopyPageBP(GenericContextBP):
         page.print_info()
         return False
 
-class WriteBP(GenericContextBP):
-    def _stop(self):
-        global task, pipe, buf, fmap
-        print(75*"-"+"\nStage 6: writing to page cache\n")
-        task.print_info()
-        pipe.print_info()
-        buf.print_info()
-        fmap.print_info()
-        g.execute('q')
-        return False
 
 '''
 gdb commands
 '''
 OpenBP('fs/open.c:1220', comm = 'poc')
 PipeFcntlBP('fs/pipe.c:1401', comm = 'poc')
+PipeWriteBP('fs/pipe.c:597', comm = 'poc')
+#PipeWriteBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
 BufReleaseBP('anon_pipe_buf_release', comm = 'poc')
-CopyPageBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
-writebp = WriteBP('*0xffffffff8120c94e', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
-writebp.enabled = False
 g.execute('c')
