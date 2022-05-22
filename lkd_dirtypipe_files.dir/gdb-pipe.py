@@ -23,13 +23,17 @@ Struct classes
 '''
 class GenericStruct():
     '''
-    Info: Container for a struct.
+    Info: Container for a struct. Do not instantiate directly.
     @attr   gdb.Value   address     pointer to struct
     '''
+    stype = None
+    ptype = None
     def __init__(self, address):
         '''
         @param  gdb.Value   address     pointer to struct
         '''
+        if str(address.type) != str(self.ptype):
+            address = address.cast(self.ptype)
         self.address = address
 
     def get_member(self, member):
@@ -69,12 +73,16 @@ class GenericStruct():
 
 
 class Task(GenericStruct):
+    stype = g.lookup_type('struct task_struct')
+    ptype = stype.pointer()
     def _print_info(self):
         self.print_member('pid')
         self.print_member('comm')
 
 
 class Pipe(GenericStruct):
+    stype = g.lookup_type('struct pipe_inode_info')
+    ptype = stype.pointer()
     def _print_info(self):
         self.print_member('head')
         self.print_member('tail')
@@ -83,11 +91,15 @@ class Pipe(GenericStruct):
 
 
 class PipeBuffer(GenericStruct):
+    stype = g.lookup_type('struct pipe_buffer')
+    ptype = stype.pointer()
     def _print_info(self):
         print(self.address.dereference())
 
 
 class File(GenericStruct):
+    stype = g.lookup_type('struct file')
+    ptype = stype.pointer()
     def get_filename(self):
         # TODO Maybe make it like page_address so it can be used as
         #   a convenience function without creating class instance
@@ -98,19 +110,22 @@ class File(GenericStruct):
 
 
 class AddrSpace(GenericStruct):
+    stype = g.lookup_type('struct address_space')
+    ptype = stype.pointer()
     def _print_info(self):
         print("> 'i_pages.xa_head' : {0}".format(
             self.get_member('i_pages')['xa_head']))
 
 
 class XArray(GenericStruct):
+    stype = g.lookup_type('struct xarray')
+    ptype = stype.pointer()
     # TODO implement proper xarray functionality
     def _print_info(self):
         pass
 
 
 class Page(GenericStruct):
-    # TODO this functionality belongs into parent class
     stype = g.lookup_type('struct page')
     ptype = stype.pointer()
 
@@ -118,10 +133,9 @@ class Page(GenericStruct):
         '''
         @attr   gdb.Value   virtual     virtual address of cached data
         '''
-        # TODO this functionality belongs into parent class
-        if address.type != Page.ptype:
-            address = address.cast(Page.ptype)
+        print(address.type)
         super().__init__(address)
+        print(self.address.type)
         self.virtual = self.page_address(self.address)
 
     @staticmethod
@@ -182,16 +196,15 @@ class OpenBP(GenericContextBP):
         file.print_info()
         fmap.print_info()
         page.print_info()
-        return True
+        return False
 
 
-class PipeBP(GenericContextBP):
+class PipeFcntlBP(GenericContextBP):
     def _stop(self):
-        global pipe, task, fmap, page
-        pipe = Pipe(g.parse_and_eval('pipe'))
+        global pipe, buf 
+        pipe = Pipe(g.parse_and_eval('file')['private_data'])
         buf = PipeBuffer(pipe.get_member('bufs'))
-        print(75*"-"+"\nStage 1: create fresh pipe\n")
-        task.print_info()
+        print(75*"-"+"\nStage 2: create pipe\n")
         pipe.print_info()
         buf.print_info()
         return True
@@ -235,7 +248,7 @@ class WriteBP(GenericContextBP):
 gdb commands
 '''
 OpenBP('fs/open.c:1220', comm = 'poc')
-PipeBP('fs/pipe.c:885', comm = 'poc')
+PipeFcntlBP('fs/pipe.c:1401', comm = 'poc')
 BufReleaseBP('anon_pipe_buf_release', comm = 'poc')
 CopyPageBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
 writebp = WriteBP('*0xffffffff8120c94e', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
