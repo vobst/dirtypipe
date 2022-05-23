@@ -22,7 +22,7 @@ sudo ./lkd_create_root_fs.sh || exit 1
 # add entry to ssh config
 if [[ -z $(grep -E "^Host lkd_qemu$" ${PATH_SSH_CONF}) ]]
 then
-  echo -en "\nHost lkd_qemu\n\tHostName localhost\n\tPort 2222\n\tUser root\n\tIdentityFile ${PATH_SSH_KEY}" >> ${PATH_SSH_CONF} || exit 1
+  echo -en "\nHost lkd_qemu\n\tHostName localhost\n\tPort 2222\n\tUser root\n\tIdentityFile ${PATH_SSH_KEY}\n\tStrictHostKeyChecking false" >> ${PATH_SSH_CONF} || exit 1
 fi
 
 # fix broken symlink
