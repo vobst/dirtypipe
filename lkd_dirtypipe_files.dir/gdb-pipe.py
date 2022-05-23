@@ -1,4 +1,12 @@
-# TODO add gdb cli function to convert struct page * to VA
+'''
+# TODO 
+> add gdb cli functions
+lkd_page_address
+lkd_page_data
+lkd_file_name
+lkd_file_path
+'''
+
 import gdb as g
 
 '''
@@ -232,12 +240,12 @@ class PipeWriteBP(GenericContextBP):
         return False
 
 
-class BufReleaseBP(GenericContextBP):
+class PipeReadBP(GenericContextBP):
     def _stop(self):
-        global pipe, buf, task
-        buf = PipeBuffer(pipe.get_member('bufs'))
+        global pipe, buf
+        if int(buf.get_member('len')) != 0:
+            return False
         print(75*"-"+"\nStage 4: release drained pipe buffer\n")
-        task.print_info()
         pipe.print_info()
         buf.print_info()
         return False
@@ -264,6 +272,7 @@ gdb commands
 OpenBP('fs/open.c:1220', comm = 'poc')
 PipeFcntlBP('fs/pipe.c:1401', comm = 'poc')
 PipeWriteBP('fs/pipe.c:597', comm = 'poc')
+PipeReadBP('fs/pipe.c:395')
 #PipeWriteBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
 BufReleaseBP('anon_pipe_buf_release', comm = 'poc')
 g.execute('c')
