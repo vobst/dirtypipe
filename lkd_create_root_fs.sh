@@ -18,7 +18,7 @@ mkfs.ext2 $IMG && \
 mkdir $DIR && \
 mount -o loop $IMG $DIR && \
 debootstrap --arch amd64 \
---include=build-essential,vim,openssh-server,make \
+--include=build-essential,vim,openssh-server,make,sudo \
 bullseye $DIR && \
 sed -i -e "s#root:\*#root:${ROOT_PASSWD_HASH}#" $DIR/etc/shadow && \
 echo "lkd-debian-qemu" > $DIR/etc/hostname && \
