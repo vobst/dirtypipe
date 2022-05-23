@@ -222,7 +222,7 @@ class PipeFcntlBP(GenericContextBP):
 class PipeWriteBP(GenericContextBP):
     def _stop(self):
         global pipe, buf
-        if int(buf.get_member('len')) not in {8, 4096}:
+        if int(buf.get_member('len')) not in {8, 18, 4096}:
             return False
         else:
             buf_page = Page(buf.get_member('page'))
@@ -232,7 +232,7 @@ class PipeWriteBP(GenericContextBP):
                 print(75*"-"+"\nStage 3.2: filled pipe buffer\n")
             else:
                 global fmap
-                print(75*"-"+"\nStage 7:\n")
+                print(75*"-"+"\nStage 7: writing into page cache\n")
                 fmap.print_info()
         pipe.print_info()
         buf.print_info()
@@ -251,28 +251,26 @@ class PipeReadBP(GenericContextBP):
         return False
 
 
-class CopyPageBP(GenericContextBP):
+class SpliceToPipeBP(GenericContextBP):
     def _stop(self):
-        global writebp, fmap, pipe, buf, task
-        writebp.enabled = True # TOOD implement proper
-        xarray = XArray(fmap.get_member('i_pages').address)
-        page = Page(xarray.get_member('xa_head'))
+        global fmap, pipe, buf, page 
         print(75*"-"+"\nStage 5: splicing file to pipe\n")
-        task.print_info()
         pipe.print_info()
         buf.print_info()
         fmap.print_info()
         page.print_info()
         return False
 
-
 '''
-gdb commands
+Instantiate breakpoints
 '''
 OpenBP('fs/open.c:1220', comm = 'poc')
 PipeFcntlBP('fs/pipe.c:1401', comm = 'poc')
 PipeWriteBP('fs/pipe.c:597', comm = 'poc')
-PipeReadBP('fs/pipe.c:395')
+PipeReadBP('fs/pipe.c:393', comm = 'poc')
+SpliceToPipeBP('fs/splice.c:1106', comm = 'poc')
 #PipeWriteBP('*0xffffffff8142005b', g.BP_HARDWARE_BREAKPOINT, comm = 'poc')
-BufReleaseBP('anon_pipe_buf_release', comm = 'poc')
+'''
+gdb commands
+'''
 g.execute('c')
