@@ -10,7 +10,7 @@
 void
 pause_for_inspection(char* msg) {
     puts(msg);
-    __asm__("int $0x3\n");
+    getchar();
 }
 
 void
@@ -44,7 +44,7 @@ drain_pipe(int pipefd_r) {
 void
 setup_pipe(int pipefd_r, int pipefd_w) {
     if (fcntl(pipefd_w, F_SETPIPE_SZ, PAGESIZE) != PAGESIZE) {
-        exit(7);
+        exit(1);
     }
     fill_pipe(pipefd_w);
     drain_pipe(pipefd_r);

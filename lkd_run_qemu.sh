@@ -27,7 +27,7 @@ qemu-system-x86_64 \
 -append "root=/dev/sda rw console=ttyS0 nokaslr" \
 -drive file=./lkd_qemu_image.qcow2,format=raw \
 --nographic -m 4096 \
--nic user,hostfwd=tcp:127.0.0.1:2222-:2222 \
+-nic user,hostfwd=tcp:127.0.0.1:2222-:22 \
 -smp 1 $DEBUG \
 |& tee lkd_vm.log
 
