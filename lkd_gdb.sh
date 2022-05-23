@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 
 gdb \
-  -q \
-  -ex "add-auto-load-safe-path $(pwd)" \
-  -ex "file $(pwd)/vmlinux" \
-  -ex "set architecture i386:x86-64:intel" \
-  -ex "target remote 127.0.0.1:1234" \
-  -ex "break start_kernel" \
-  -ex "continue" \
-  -ex "lx-symbols"
+-q \
+-x lkd_dirtypipe_files.dir/gdb-pipe.sh 
