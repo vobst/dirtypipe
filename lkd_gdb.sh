@@ -2,4 +2,4 @@
 
 gdb \
 -q \
--x lkd_dirtypipe_files.dir/gdb-pipe.sh 
+-x lkd_dirtypipe_files.dir/gdb-pipe.py
