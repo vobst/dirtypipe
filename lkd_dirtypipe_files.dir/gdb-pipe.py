@@ -119,6 +119,7 @@ class File(GenericStruct):
         return self.get_member("f_path")["dentry"]["d_name"]["name"].string()
 
     def _print_info(self):
+        self.print_member("f_mapping")
         print("> filename: " + self.get_filename())
 
 
@@ -142,6 +143,7 @@ class Page(GenericStruct):
     stype = g.lookup_type("struct page")
     ptype = stype.pointer()
     pagesize = 4096
+    page_shift = 12
 
     def __init__(self, address):
         """
@@ -156,17 +158,16 @@ class Page(GenericStruct):
         Info: Calculates the virtual address of a page
         @param  gdb.Value   page        'struct page *'
         """
-        page_shift = 12
-        struct_page_size = int(g.parse_and_eval("sizeof(struct page)"))
 
         vmemmap_base = int(g.parse_and_eval("vmemmap_base"))
         page_offset_base = int(g.parse_and_eval("page_offset_base"))
         page = int(page)
         return (
-            int((page - vmemmap_base) / struct_page_size) << page_shift
+            int((page - vmemmap_base) / Page.stype.sizeof) << Page.page_shift
         ) + page_offset_base
 
     def _print_info(self):
+        print("> virtual: " + hex(self.virtual))
         print(
             "> data: "
             + str(g.selected_inferior().read_memory(self.virtual, 20).tobytes())
