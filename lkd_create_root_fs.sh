@@ -22,6 +22,7 @@ debootstrap --arch amd64 \
 bullseye $DIR && \
 sed -i -e "s#root:\*#root:${ROOT_PASSWD_HASH}#" $DIR/etc/shadow && \
 echo "lkd-debian-qemu" > $DIR/etc/hostname && \
+echo "127.0.0.1       lkd-debian-qemu" >> $DIR/etc/hosts && \
 echo -e "auto enp0s3\niface enp0s3 inet dhcp" >> $DIR/etc/network/interfaces && \
 mkdir $DIR/root/.ssh && \
 cat $PATH_SSH > $DIR/root/.ssh/authorized_keys && \
