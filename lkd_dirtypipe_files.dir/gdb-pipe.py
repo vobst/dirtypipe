@@ -10,6 +10,21 @@ lkd_file_path
 import gdb as g
 
 
+class Session():
+    '''
+    Info: Container to store information during a debugging session.
+    '''
+    task = None
+    pipe = None
+    buf = None
+    file = None
+    fmap = None
+    page = None
+
+    def __init__(self):
+        pass
+
+
 class GenericStruct:
     """
     Info: Container for a struct. Do not instantiate directly.
@@ -193,18 +208,12 @@ class GenericContextBP(g.Breakpoint):
         """
         super().__init__(*args)
         self._comm = kwargs["comm"]
-        self._condition = f"""$_streq($lx_current().comm, "{self.comm}")"""
-        self._task = None
-        self._pipe = None
-        self._buf = None
-        self._file = None
-        self._fmap = None
-        self._page = None
+        self._condition = f"""$_streq($lx_current().comm, "{self._comm}")"""
 
     def _condition_holds(self):
         return bool(g.parse_and_eval(self._condition))
 
-    def _print_header(message):
+    def _print_header(self, message):
         print("{}\n{}\n".format(75 * "-", message))
 
     def stop(self):
@@ -222,66 +231,66 @@ class GenericContextBP(g.Breakpoint):
 
 class OpenBP(GenericContextBP):
     def _stop(self):
-        self._file = File(g.parse_and_eval("f"))
-        if self._file.get_filename() != "target_file":
+        Session.file = File(g.parse_and_eval("f"))
+        if Session.file.get_filename() != "target_file":
             return False
-        self._task = Task(g.parse_and_eval("$lx_current()").address)
-        self._fmap = AddrSpace(self._file.get_member("f_mapping"))
-        self._page = Page(self._fmap.get_member("i_pages")["xa_head"])
+        Session.task = Task(g.parse_and_eval("$lx_current()").address)
+        Session.fmap = AddrSpace(Session.file.get_member("f_mapping"))
+        Session.page = Page(Session.fmap.get_member("i_pages")["xa_head"])
         self._print_header("Stage 1: open the target file")
-        self._task.print_info()
-        self._file.print_info()
-        self._fmap.print_info()
-        self._page.print_info()
+        Session.task.print_info()
+        Session.file.print_info()
+        Session.fmap.print_info()
+        Session.page.print_info()
         return False
 
 
 class PipeFcntlBP(GenericContextBP):
     def _stop(self):
-        self._pipe = Pipe(g.parse_and_eval("file")["private_data"])
-        self._buf = PipeBuffer(self._pipe.get_member("bufs"))
+        Session.pipe = Pipe(g.parse_and_eval("file")["private_data"])
+        Session.buf = PipeBuffer(Session.pipe.get_member("bufs"))
         self._print_header("Stage 2: create pipe")
-        self._pipe.print_info()
-        self._buf.print_info()
+        Session.pipe.print_info()
+        Session.buf.print_info()
         return False
 
 
 class PipeWriteBP(GenericContextBP):
     def _stop(self):
-        if int(self._buf.get_member("len")) not in {8, 18, 4096}:
+        if int(Session.buf.get_member("len")) not in {8, 18, 4096}:
             return False
         else:
-            buf_page = Page(self._buf.get_member("page"))
-            if int(self._buf.get_member("len")) == 8:
+            buf_page = Page(Session.buf.get_member("page"))
+            if int(Session.buf.get_member("len")) == 8:
                 self._print_header("Stage 3.1: init pipe buffer with write")
-            elif int(self._buf.get_member("len")) == 4096:
+            elif int(Session.buf.get_member("len")) == 4096:
                 self._print_header("Stage 3.2: filled pipe buffer")
             else:
                 self._print_header("Stage 7: writing into page cache")
-                self._fmap.print_info()
-        self._pipe.print_info()
-        self._buf.print_info()
+                Session.fmap.print_info()
+        Session.pipe.print_info()
+        Session.buf.print_info()
         buf_page.print_info()
         return False
 
 
 class PipeReadBP(GenericContextBP):
     def _stop(self):
-        if int(self._buf.get_member("len")) != 0:
+        if int(Session.buf.get_member("len")) != 0:
             return False
         self._print_header("Stage 4: release drained pipe buffer")
-        self._pipe.print_info()
-        self._buf.print_info()
+        Session.pipe.print_info()
+        Session.buf.print_info()
         return False
 
 
 class SpliceToPipeBP(GenericContextBP):
     def _stop(self):
         self._print_header("Stage 5: splicing file to pipe")
-        self._pipe.print_info()
-        self._buf.print_info()
-        self._fmap.print_info()
-        self._page.print_info()
+        Session.pipe.print_info()
+        Session.buf.print_info()
+        Session.fmap.print_info()
+        Session.page.print_info()
         return False
 
 
