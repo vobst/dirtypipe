@@ -106,9 +106,28 @@ class Pipe(GenericStruct):
 class PipeBuffer(GenericStruct):
     stype = g.lookup_type("struct pipe_buffer")
     ptype = stype.pointer()
+    flags = {
+        "PIPE_BUF_FLAG_LRU": 0x01,
+        "PIPE_BUF_FLAG_ATOMIC": 0x02,
+        "PIPE_BUF_FLAG_GIFT": 0x04,
+        "PIPE_BUF_FLAG_PACKET": 0x08,
+        "PIPE_BUF_FLAG_CAN_MERGE": 0x10,
+        "PIPE_BUF_FLAG_WHOLE": 0x20,
+    }
+
+    def sym_flags(self):
+        tmp = []
+        for key, value in self.flags.items():
+            if int(self.get_member("flags")) & value != 0:
+                tmp.append(key)
+        return " | ".join(tmp)
 
     def _print_info(self):
-        print(self.address.dereference())
+        self.print_member("page")
+        self.print_member("offset")
+        self.print_member("len")
+        self.print_member("ops")
+        print("> 'flags': " + self.sym_flags())
 
 
 class File(GenericStruct):
