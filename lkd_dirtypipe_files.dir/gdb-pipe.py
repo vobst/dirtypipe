@@ -9,27 +9,6 @@ lkd_file_path
 
 import gdb as g
 
-"""
-@global Task        task    'struct task_struct' of poc process
-@global Pipe        pipe    'struct pipe_inode_info' of our pipe
-@global PipeBuffer  buf     'struct pipe_buffer' of our pipe
-@global File        file    'struct file' of target file
-@global AddrSpace   fmap    'struct address_space' representing the
-                            target target file in the page cache
-@global Page        page    'struct page' holding data in page cache
-"""
-task = None
-pipe = None
-buf = None
-file = None
-fmap = None
-page = None
-
-
-"""
-Struct classes
-"""
-
 
 class GenericStruct:
     """
@@ -70,7 +49,7 @@ class GenericStruct:
     def print_info(self):
         """
         Info: Prints summary including 'interesting' members of the
-          struct.
+        struct.
         """
         self.print_header()
         self._print_info()
@@ -177,10 +156,15 @@ class Page(GenericStruct):
         Info: Calculates the virtual address of a page
         @param  gdb.Value   page        'struct page *'
         """
+        page_shift = 12
+        struct_page_size = int(g.parse_and_eval("sizeof(struct page)"))
+
         vmemmap_base = int(g.parse_and_eval("vmemmap_base"))
         page_offset_base = int(g.parse_and_eval("page_offset_base"))
         page = int(page)
-        return (int((page - vmemmap_base) / 64) << 12) + page_offset_base
+        return (
+            int((page - vmemmap_base) / struct_page_size) << page_shift
+        ) + page_offset_base
 
     def _print_info(self):
         print(
@@ -195,11 +179,6 @@ class Page(GenericStruct):
         )
 
 
-"""
-Breakpoint classes
-"""
-
-
 class GenericContextBP(g.Breakpoint):
     """
     Info: A Breakpoint that is only active in a given context.
@@ -212,18 +191,28 @@ class GenericContextBP(g.Breakpoint):
                                         context we want to stop
         """
         super().__init__(*args)
-        self.comm = kwargs["comm"]
-        self._hit_count = 0
+        self._comm = kwargs["comm"]
         self._condition = f"""$_streq($lx_current().comm, "{self.comm}")"""
+        self._task = None
+        self._pipe = None
+        self._buf = None
+        self._file = None
+        self._fmap = None
+        self._page = None
+
+    def _condition_holds(self):
+        return bool(g.parse_and_eval(self._condition))
+
+    def _print_header(message):
+        print("{}\n{}\n".format(75 * "-", message))
 
     def stop(self):
         # Problem: It seems like the BP.condition only influences whether
         #   gdb stops the program i.e. return value of stop(), but not if
         #   the code in stop() is executed.
         #   https://stackoverflow.com/a/56871869
-        if g.parse_and_eval(self._condition) == 0:
+        if not self._condition_holds():
             return False
-        self._hit_count += 1
         return self._stop()
 
     def _stop(self):
@@ -232,84 +221,80 @@ class GenericContextBP(g.Breakpoint):
 
 class OpenBP(GenericContextBP):
     def _stop(self):
-        global task, file, fmap, page
-        file = File(g.parse_and_eval("f"))
-        if file.get_filename() != "target_file":
+        self._file = File(g.parse_and_eval("f"))
+        if self._file.get_filename() != "target_file":
             return False
-        task = Task(g.parse_and_eval("$lx_current()").address)
-        fmap = AddrSpace(file.get_member("f_mapping"))
-        page = Page(fmap.get_member("i_pages")["xa_head"])
-        print(75 * "-" + "\nStage 1: open the target file\n")
-        task.print_info()
-        file.print_info()
-        fmap.print_info()
-        page.print_info()
+        self._task = Task(g.parse_and_eval("$lx_current()").address)
+        self._fmap = AddrSpace(self._file.get_member("f_mapping"))
+        self._page = Page(self._fmap.get_member("i_pages")["xa_head"])
+        self._print_header("Stage 1: open the target file")
+        self._task.print_info()
+        self._file.print_info()
+        self._fmap.print_info()
+        self._page.print_info()
         return False
 
 
 class PipeFcntlBP(GenericContextBP):
     def _stop(self):
-        global pipe, buf
-        pipe = Pipe(g.parse_and_eval("file")["private_data"])
-        buf = PipeBuffer(pipe.get_member("bufs"))
-        print(75 * "-" + "\nStage 2: create pipe\n")
-        pipe.print_info()
-        buf.print_info()
+        self._pipe = Pipe(g.parse_and_eval("file")["private_data"])
+        self._buf = PipeBuffer(self._pipe.get_member("bufs"))
+        self._print_header("Stage 2: create pipe")
+        self._pipe.print_info()
+        self._buf.print_info()
         return False
 
 
 class PipeWriteBP(GenericContextBP):
     def _stop(self):
-        global pipe, buf
-        if int(buf.get_member("len")) not in {8, 18, 4096}:
+        if int(self._buf.get_member("len")) not in {8, 18, 4096}:
             return False
         else:
-            buf_page = Page(buf.get_member("page"))
-            if int(buf.get_member("len")) == 8:
-                print(75 * "-" + "\nStage 3.1: init pipe buffer with write\n")
-            elif int(buf.get_member("len")) == 4096:
-                print(75 * "-" + "\nStage 3.2: filled pipe buffer\n")
+            buf_page = Page(self._buf.get_member("page"))
+            if int(self._buf.get_member("len")) == 8:
+                self._print_header("Stage 3.1: init pipe buffer with write")
+            elif int(self._buf.get_member("len")) == 4096:
+                self._print_header("Stage 3.2: filled pipe buffer")
             else:
-                global fmap
-                print(75 * "-" + "\nStage 7: writing into page cache\n")
-                fmap.print_info()
-        pipe.print_info()
-        buf.print_info()
+                self._print_header("Stage 7: writing into page cache")
+                self._fmap.print_info()
+        self._pipe.print_info()
+        self._buf.print_info()
         buf_page.print_info()
         return False
 
 
 class PipeReadBP(GenericContextBP):
     def _stop(self):
-        global pipe, buf
-        if int(buf.get_member("len")) != 0:
+        if int(self._buf.get_member("len")) != 0:
             return False
-        print(75 * "-" + "\nStage 4: release drained pipe buffer\n")
-        pipe.print_info()
-        buf.print_info()
+        self._print_header("Stage 4: release drained pipe buffer")
+        self._pipe.print_info()
+        self._buf.print_info()
         return False
 
 
 class SpliceToPipeBP(GenericContextBP):
     def _stop(self):
-        global fmap, pipe, buf, page
-        print(75 * "-" + "\nStage 5: splicing file to pipe\n")
-        pipe.print_info()
-        buf.print_info()
-        fmap.print_info()
-        page.print_info()
+        self._print_header("Stage 5: splicing file to pipe")
+        self._pipe.print_info()
+        self._buf.print_info()
+        self._fmap.print_info()
+        self._page.print_info()
         return False
 
 
-"""
-Instantiate breakpoints
-"""
-OpenBP("fs/open.c:1220", comm="poc")
-PipeFcntlBP("fs/pipe.c:1401", comm="poc")
-PipeWriteBP("fs/pipe.c:597", comm="poc")
-PipeReadBP("fs/pipe.c:393", comm="poc")
-SpliceToPipeBP("fs/splice.c:1106", comm="poc")
-"""
-gdb commands
-"""
-g.execute("c")
+def main():
+    # the name of the poc binary
+    comm = "poc"
+
+    OpenBP("fs/open.c:1220", comm=comm)
+    PipeFcntlBP("fs/pipe.c:1401", comm=comm)
+    PipeWriteBP("fs/pipe.c:597", comm=comm)
+    PipeReadBP("fs/pipe.c:393", comm=comm)
+    SpliceToPipeBP("fs/splice.c:1106", comm=comm)
+
+    g.execute("c")
+
+
+main()
