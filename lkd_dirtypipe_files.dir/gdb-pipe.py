@@ -143,6 +143,7 @@ class AddrSpace(GenericStruct):
     ptype = stype.pointer()
 
     def _print_info(self):
+        self.print_member('a_ops')
         print("> 'i_pages.xa_head' : {0}".format(self.get_member("i_pages")["xa_head"]))
 
 
