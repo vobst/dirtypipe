@@ -52,7 +52,10 @@ class GenericStruct:
         """
         @param String member: struct member to print
         """
-        print("> '{0}': {1}".format(member, self.get_member(member)))
+        value = self.get_member(member)
+        if value.type.code == g.TYPE_CODE_PTR and int(value) == 0:
+            value = 'NULL'
+        print("> '{0}': {1}".format(member, value))
 
     def print_header(self):
         """
