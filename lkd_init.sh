@@ -7,7 +7,7 @@ PATH_SSH_KEY=/home/kali/.ssh/id_rsa
 sudo true || exit 1
 
 # build image for debugger container
-docker build -f lkd_Dockerfile -t lkd . || exit 1
+docker build -f lkd_Dockerfile -t lkd-dirtypipe . || exit 1
 
 # get sources for an in-tree build of unpatched kernel
 wget https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/snapshot/linux-e783362eb54cd99b2cac8b3a9aeac942e6f6ac07.tar.gz && \

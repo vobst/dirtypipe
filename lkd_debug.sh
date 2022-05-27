@@ -8,4 +8,4 @@ docker run -it \
     --net host \
     --hostname "lkd-pwndbg-container" \
     --name lkd-pwndbg-container \
-    lkd
+    lkd-dirtypipe
