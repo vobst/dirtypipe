@@ -1,4 +1,7 @@
-class GenericContextBP(g.Breakpoint):
+import gdb
+
+
+class GenericContextBP(gdb.Breakpoint):
     """
     Info: A Breakpoint that is only active in a given context.
     """
@@ -16,7 +19,7 @@ class GenericContextBP(g.Breakpoint):
         self._condition = f"""$_streq($lx_current().comm, "{self._comm}")"""
 
     def _condition_holds(self):
-        return bool(g.parse_and_eval(self._condition))
+        return bool(gdb.parse_and_eval(self._condition))
 
     def _print_header(self, message):
         print("{}\n{}\n".format(75 * "-", message))

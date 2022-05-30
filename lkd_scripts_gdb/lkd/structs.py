@@ -1,3 +1,6 @@
+import gdb
+
+
 class GenericStruct:
     """
     Info: Container for a struct. Do not instantiate directly.
