@@ -27,8 +27,9 @@ then
   echo -en "\nHost lkd_qemu\n\tHostName localhost\n\tPort 2222\n\tUser root\n\tIdentityFile ${PATH_SSH_KEY}\n\tStrictHostKeyChecking false" >> ${PATH_SSH_CONF} || exit 1
 fi
 
-# fix broken symlink
+# create symlinks for loading gdb scripts
 ln -sf /project/scripts/gdb/vmlinux-gdb.py vmlinux-gdb.py
+ln -s /project/lkd_scripts_gdb/lkd_gdb_load.py lkd_gdb_load.py
 
 # create dockerignore
 ls -a | grep -v lkd  | grep -v -E "^(.|..)$" > .dockerignore && \
