@@ -1,6 +1,7 @@
 import os
 
-sys.path.insert(0, os.path.dirname(__file__) + "/lkd_scripts_gdb")
+# TODO proper path changing, proper modules
+sys.path.insert(0, "/project/lkd_scripts_gdb")
 
 from lkd import session
 from lkd import structs
