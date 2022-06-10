@@ -1,6 +1,6 @@
 # Linux Kernel Debugging - 'dirtypipe' edition
 
-This is the kernel debugging setup used in our [blogpost](http://example.com) on the dirtypipe vulnerability. The setup was adapted from [here](https://github.com/martinclauss/linux-kernel-debugging).
+This is the kernel debugging setup used in our [blogpost](https://lolcads.github.io/posts/2022/06/dirty_pipe_cve_2022_0847/) on the dirtypipe vulnerability. The setup was adapted from [here](https://github.com/martinclauss/linux-kernel-debugging).
 
 ## Quick Start
 
